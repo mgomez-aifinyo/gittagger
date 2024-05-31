@@ -7,13 +7,13 @@ use CzProject\GitPhp\GitRepository;
 
 class ExtGitRepository extends GitRepository
 {
-    public function getSortedTagsByDate()
+    public function getSortedTagsByDate(): array
     {
-//         $result = $this->run('for-each-ref', '--sort=taggerdate', "--format '%(refname:short) %(taggerdate)'", 'refs/tags');
         $command = 'git for-each-ref --sort=taggerdate --format \'%(refname:short) %(taggerdate)\' refs/tags';
         exec('pwd', $output);
         $curDir = $output[0];
         chdir($this->repository);
+        $output = null;
         exec($command, $output);
         chdir($curDir);
 
@@ -21,7 +21,19 @@ class ExtGitRepository extends GitRepository
             $output[$index] = explode(' ', $item)[0];
         }
 
-
         return $output;
+    }
+
+    /**
+     * Push changes to a remote
+     * @param  string|string[]|null $remote
+     * @param  array|null $options
+     * @return static
+     * @throws GitException
+     */
+    public function push(?string $remote = null, array $options = null): self
+    {
+        $this->run('push', $remote, $options);
+        return $this;
     }
 }

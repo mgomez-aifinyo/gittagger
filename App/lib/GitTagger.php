@@ -2,6 +2,7 @@
 namespace App\lib;
 
 use CzProject\GitPhp\GitException;
+use Exception;
 use PHLAK\SemVer\Exceptions\InvalidVersionException;
 use PHLAK\SemVer\Version;
 use RuntimeException;
@@ -14,6 +15,8 @@ class GitTagger
     const FACTOR_MAJOR = 'major';
     const FACTOR_MINOR = 'minor';
     const FACTOR_REVISION = 'revision';
+    const BASE_SEMVER = '0.0.0';
+    const DEFAULT_REMOTE = 'origin';
 
     /** @var ExtGit */
     private $git;
@@ -31,20 +34,18 @@ class GitTagger
 
     public function run(string $repoDir = GitTagger::DEFAULT_REPO_PATH): bool
     {
+        $currentTag = self::BASE_SEMVER;
         $this->openRepository($repoDir);
-        $this->fetchTags();
 
-        $currentTag = $this->tagList[count($this->tagList) - 1];
+        if ($this->fetchTags()) {
+            $currentTag = $this->tagList[count($this->tagList) - 1];
+        }
 
-        echo 'Current tag is: ' . $currentTag . PHP_EOL;
-        echo 'Choose next tag by option number: ' . PHP_EOL;
-        printf('1. Major (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_MAJOR));
-        printf('2. Minor (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_MINOR));
-        printf('3. Revision (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_REVISION));
-        printf('4. Other' . PHP_EOL);
+        $this->showMenu($currentTag);
 
-        echo 'Enter option number: ';
+
         $answer = CliPrompt::prompt();
+
         switch ($answer) {
             case 1:
                 $nextTag = $this->calculateNextTag($currentTag, self::FACTOR_MAJOR);
@@ -56,8 +57,14 @@ class GitTagger
                 $nextTag = $this->calculateNextTag($currentTag, self::FACTOR_REVISION);
                 break;
             case 4:
-                echo 'Enter new tag: ';
-                $nextTag = CliPrompt::prompt();
+                printf('Enter custom tag: ');
+                $nextTag = str_replace(' ', '', CliPrompt::prompt());
+
+                if (empty($nextTag))
+                {
+                    printf('Tag cannot be empty: %s ' . PHP_EOL, $nextTag);
+                    return false;
+                }
                 break;
             default:
                 printf('Invalid option number: %s ' . PHP_EOL, $answer);
@@ -65,15 +72,17 @@ class GitTagger
         }
 
         if ($this->tagExists($nextTag)) {
-            echo 'Tag already exists: ' . $nextTag . PHP_EOL;
+            printf ('Tag already exists: %s' . PHP_EOL, $nextTag);
             return false;
         }
 
         try {
             $this->createTag($nextTag, $nextTag);
-            $this->pushTags();
+            printf('Tag %s created' . PHP_EOL, $nextTag);
+            $this->pushTag($nextTag);
+            printf('Tag %s pushed to remote %s' . PHP_EOL, $nextTag, self::DEFAULT_REMOTE);
         } catch (GitException $e) {
-            echo 'Failed to create tag: ' . $e->getMessage() . PHP_EOL;
+            printf('Failed to create or push tag: %s' . PHP_EOL, $e->getMessage());
             return false;
         }
 
@@ -86,36 +95,34 @@ class GitTagger
     }
 
     /**
-     * @param string $tagName
-     * @param string $message
-     * @return void
      * @throws GitException
      */
     private function createTag(string $tagName, string $message): void
     {
         $options = [];
         if ($message !== '') {
-            $options['message'] = $message;
+            $options['--message'] = "'$message'";
         }
         $this->repo->createTag($tagName, $options);
     }
 
     /**
-     * @return void
      * @throws GitException
      */
-    private function pushTags(): void
+    private function pushTag(string $tagName): void
     {
-        $this->repo->push(null, ['--tags'] );
+        $this->repo->push(self::DEFAULT_REMOTE, ['tag', $tagName] );
     }
 
-    private function fetchTags(): void
+    private function fetchTags(): bool
     {
-        try {
-            $this->tagList = $this->repo->getSortedTagsByDate();
-        } catch (GitException $e) {
-            throw new RuntimeException('Failed to fetch tags: ' . $e->getMessage(), 0, $e);
+        $this->tagList = $this->repo->getSortedTagsByDate();
+        if (empty($this->tagList)) {
+            printf('No tags found' . PHP_EOL);
+            return false;
         }
+
+        return true;
     }
 
     private function tagExists(string $tagName): bool
@@ -146,5 +153,22 @@ class GitTagger
         } catch (InvalidVersionException $e) {
             throw new RuntimeException('Failed to parse current tag: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    private function showMenu($currentTag): void
+    {
+        printf('## GitTagger - Automatic semver based git tag creator ##' . PHP_EOL);
+        printf(PHP_EOL);
+        printf('Repository: %s' . PHP_EOL, $this->repo->getRepositoryPath());
+        printf('Branch: %s' . PHP_EOL, $this->repo->getCurrentBranchName());
+        printf('Last created tag: %s' . PHP_EOL, $currentTag);
+        printf(PHP_EOL);
+        printf('Choose next tag by option number:' . PHP_EOL);
+        printf('1. Increase major (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_MAJOR));
+        printf('2. Increase minor (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_MINOR));
+        printf('3. Increase revision (%s)' . PHP_EOL, $this->calculateNextTag($currentTag, self::FACTOR_REVISION));
+        printf('4. Other/custom' . PHP_EOL);
+        printf(PHP_EOL);
+        printf('Enter option number: ');
     }
 }

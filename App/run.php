@@ -1,6 +1,6 @@
 <?php
 
-require dirname(__DIR__) . '/vendor/autoload.php'; // It must be called first
+require dirname(__DIR__) . '/vendor/autoload.php';
 
 use App\lib\ExtGit;
 use App\lib\GitTagger;
