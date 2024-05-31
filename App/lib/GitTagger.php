@@ -111,7 +111,7 @@ class GitTagger
      */
     private function pushTag(string $tagName): void
     {
-        $this->repo->push(self::DEFAULT_REMOTE, ['tag', $tagName] );
+        $this->repo->lpush(self::DEFAULT_REMOTE, ['tag', $tagName] );
     }
 
     private function fetchTags(): bool

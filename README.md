@@ -7,6 +7,10 @@
 2. Run composer install
 
 
-## Usage
+## Usage (shell script)
 
     ./gittagger.sh <repository path>
+
+## Usage (phar file)
+
+    php gittagger.phar <repository path>

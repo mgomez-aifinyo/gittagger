@@ -31,7 +31,7 @@ class ExtGitRepository extends GitRepository
      * @return static
      * @throws GitException
      */
-    public function push(?string $remote = null, array $options = null): self
+    public function lpush(?string $remote = null, array $options = null): self
     {
         $this->run('push', $remote, $options);
         return $this;
