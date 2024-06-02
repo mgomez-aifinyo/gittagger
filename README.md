@@ -18,6 +18,5 @@ GitTagger is a simple tool to calculate next version number based on git tags se
 
 ## PHP script (PHP >=7.1 required)
 
-```
     composer install
     php App/run.php <repository path>
