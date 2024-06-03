@@ -149,7 +149,7 @@ class GitTagger
                     throw new \InvalidArgumentException('Invalid factor to increment: ' . $factorToIncrement);
             }
 
-            return (string)$version;
+            return $this->getPrefix($currentTag) . (string)$version;
         } catch (InvalidVersionException $e) {
             throw new RuntimeException('Failed to parse current tag: ' . $e->getMessage(), 0, $e);
         }
@@ -170,5 +170,12 @@ class GitTagger
         printf('4. Other/custom' . PHP_EOL);
         printf(PHP_EOL);
         printf('Enter option number: ');
+    }
+
+    private function getPrefix(string $currentTag): ?string
+    {
+        $pattern = '/([a-zA-Z]+)(\d+)/';
+        preg_match($pattern, $currentTag, $matches);
+        return $matches[1] ?? null;
     }
 }
