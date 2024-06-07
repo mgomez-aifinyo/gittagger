@@ -2,7 +2,6 @@
 namespace App\lib;
 
 use CzProject\GitPhp\GitException;
-use Exception;
 use PHLAK\SemVer\Exceptions\InvalidVersionException;
 use PHLAK\SemVer\Version;
 use RuntimeException;
@@ -32,9 +31,15 @@ class GitTagger
         $this->git = $git ?? new ExtGit();
     }
 
-    public function run(string $repoDir = GitTagger::DEFAULT_REPO_PATH): bool
+    public function run(string $repoDir = GitTagger::DEFAULT_REPO_PATH, bool $push = false): bool
     {
         $currentTag = self::BASE_SEMVER;
+
+        if (!$this->isValidGitRepositoryDir($repoDir)) {
+            fwrite(STDERR, "Error: Directory $repoDir is not a git repository" . PHP_EOL);
+            exit(1);
+        }
+
         $this->openRepository($repoDir);
 
         if ($this->fetchTags()) {
@@ -62,27 +67,32 @@ class GitTagger
 
                 if (empty($nextTag))
                 {
-                    printf('Tag cannot be empty: %s ' . PHP_EOL, $nextTag);
+                    fwrite(STDERR,"Tag cannot be empty: $nextTag" . PHP_EOL);
                     return false;
                 }
                 break;
             default:
-                printf('Invalid option number: %s ' . PHP_EOL, $answer);
+                fwrite(STDERR, "Invalid option number: $answer" . PHP_EOL);
                 return false;
         }
 
         if ($this->tagExists($nextTag)) {
-            printf ('Tag already exists: %s' . PHP_EOL, $nextTag);
+            fwrite(STDERR,'Tag already exists: %s' . PHP_EOL, $nextTag);
             return false;
         }
 
         try {
+            printf('Generated tag is: %s' . PHP_EOL, $nextTag);
+            if (!$push) {
+                printf('Dry run mode, skipping tag creation and push' . PHP_EOL);
+                return true;
+            }
             $this->createTag($nextTag, $nextTag);
             printf('Tag %s created' . PHP_EOL, $nextTag);
             $this->pushTag($nextTag);
             printf('Tag %s pushed to remote %s' . PHP_EOL, $nextTag, self::DEFAULT_REMOTE);
         } catch (GitException $e) {
-            printf('Failed to create or push tag: %s' . PHP_EOL, $e->getMessage());
+            fwrite(STDERR, "Failed to create or push tag: {$e->getMessage()}" . PHP_EOL);
             return false;
         }
 
@@ -91,7 +101,11 @@ class GitTagger
 
     private function openRepository(string $path = self::DEFAULT_REPO_PATH): void
     {
-        $this->repo = $this->git->open($path);
+        try {
+            $this->repo = $this->git->open($path);
+        } catch (GitException $e) {
+            throw new RuntimeException('Failed to open repository: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     /**
@@ -118,7 +132,7 @@ class GitTagger
     {
         $this->tagList = $this->repo->getSortedTagsByDate();
         if (empty($this->tagList)) {
-            printf('No tags found' . PHP_EOL);
+            fwrite(STDERR,'No tags found' . PHP_EOL);
             return false;
         }
 
@@ -160,7 +174,7 @@ class GitTagger
         printf('## GitTagger - Automatic semver based git tag creator ##' . PHP_EOL);
         printf(PHP_EOL);
         printf('Repository: %s' . PHP_EOL, $this->repo->getRepositoryPath());
-        printf('Branch: %s' . PHP_EOL, $this->repo->getCurrentBranchName());
+        printf('Branch: %s' . PHP_EOL, $this->getCurrentRepoBranch());
         printf('Last created tag: %s' . PHP_EOL, $currentTag);
         printf(PHP_EOL);
         printf('Choose next tag by option number:' . PHP_EOL);
@@ -177,5 +191,22 @@ class GitTagger
         $pattern = '/([a-zA-Z]+)(\d+)/';
         preg_match($pattern, $currentTag, $matches);
         return $matches[1] ?? null;
+    }
+
+    private function getCurrentRepoBranch(): string
+    {
+        try {
+            return $this->repo->getCurrentBranchName();
+        } catch (GitException $e) {
+            throw new RuntimeException('Failed to get current git branch: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    private function isValidGitRepositoryDir(string $repoDir): bool
+    {
+        if (!is_dir($repoDir) || !is_readable($repoDir) || !is_dir("$repoDir/.git") || !is_readable("$repoDir/.git")) {
+            return false;
+        }
+        return true;
     }
 }

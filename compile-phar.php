@@ -2,7 +2,7 @@
 
 try {
     // Create a new Phar object
-    $phar = new Phar('gittagger.phar', 0, 'gittagget.phar');
+    $phar = new Phar('gittagger.phar', 0, 'gittagger.phar');
 
     // Add files to the archive
     $phar->buildFromDirectory(__DIR__ . '/');
@@ -17,4 +17,4 @@ try {
     echo 'Error: ' . $e->getMessage();
 }
 
-echo "Phar archive created successfully.";
+echo "Phar archive created successfully.\n";
